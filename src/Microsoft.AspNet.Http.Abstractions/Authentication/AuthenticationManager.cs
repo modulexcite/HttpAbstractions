@@ -1,8 +1,10 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNet.Http.Features.Authentication;
 
@@ -12,7 +14,10 @@ namespace Microsoft.AspNet.Http.Authentication
     {
         public abstract IEnumerable<AuthenticationDescription> GetAuthenticationSchemes();
 
-        public abstract void Authenticate(AuthenticateContext context);
+        public void Authenticate(AuthenticateContext context)
+        {
+            RunSync(() => AuthenticateAsync(context));
+        }
 
         public abstract Task AuthenticateAsync(AuthenticateContext context);
 
@@ -30,54 +35,72 @@ namespace Microsoft.AspNet.Http.Authentication
             return context.Principal;
         }
 
-        public virtual void Challenge()
+        public virtual Task ChallengeAsync()
         {
-            Challenge(authenticationScheme: null, properties: null);
+            return ChallengeAsync(authenticationScheme: null, properties: null);
         }
 
-        public virtual void Challenge(AuthenticationProperties properties)
+        public virtual Task ChallengeAsync(AuthenticationProperties properties)
         {
-            Challenge(authenticationScheme: null, properties: properties);
+            return ChallengeAsync(authenticationScheme: null, properties: properties);
         }
 
-        public virtual void Challenge(string authenticationScheme)
+        public virtual Task ChallengeAsync(string authenticationScheme)
         {
-            Challenge(authenticationScheme: authenticationScheme, properties: null);
+            return ChallengeAsync(authenticationScheme: authenticationScheme, properties: null);
         }
 
         // Leave it up to authentication handler to do the right thing for the challenge
-        public void Challenge(string authenticationScheme, AuthenticationProperties properties)
+        public Task ChallengeAsync(string authenticationScheme, AuthenticationProperties properties)
         {
-            Challenge(authenticationScheme, properties, ChallengeBehavior.Automatic);
+            return ChallengeAsync(authenticationScheme, properties, ChallengeBehavior.Automatic);
         }
 
-        public void SignIn(string authenticationScheme, ClaimsPrincipal principal)
+        public Task SignInAsync(string authenticationScheme, ClaimsPrincipal principal)
         {
-            SignIn(authenticationScheme, principal, properties: null);
+            return SignInAsync(authenticationScheme, principal, properties: null);
         }
 
-        public void Forbid(string authenticationScheme)
+        public Task ForbidAsync(string authenticationScheme)
         {
-            Forbid(authenticationScheme, properties: null);
+            return ForbidAsync(authenticationScheme, properties: null);
         }
 
         // Deny access (typically a 403)
-        public void Forbid(string authenticationScheme, AuthenticationProperties properties)
+        public Task ForbidAsync(string authenticationScheme, AuthenticationProperties properties)
         {
-            Challenge(authenticationScheme, properties, ChallengeBehavior.Forbidden);
+            return ChallengeAsync(authenticationScheme, properties, ChallengeBehavior.Forbidden);
         }
 
-        public abstract void Challenge(string authenticationScheme, AuthenticationProperties properties, ChallengeBehavior behavior);
+        public abstract Task ChallengeAsync(string authenticationScheme, AuthenticationProperties properties, ChallengeBehavior behavior);
 
-        public abstract void SignIn(string authenticationScheme, ClaimsPrincipal principal, AuthenticationProperties properties);
+        public abstract Task SignInAsync(string authenticationScheme, ClaimsPrincipal principal, AuthenticationProperties properties);
 
-        public virtual void SignOut()
+        public Task SignOutAsync()
         {
-            SignOut(authenticationScheme: null, properties: null);
+            return SignOutAsync(authenticationScheme: null, properties: null);
         }
 
-        public abstract void SignOut(string authenticationScheme);
+        public Task SignOutAsync(string authenticationScheme)
+        {
+            return SignOutAsync(authenticationScheme, properties: null);
+        }
 
-        public abstract void SignOut(string authenticationScheme, AuthenticationProperties properties);
+        public abstract Task SignOutAsync(string authenticationScheme, AuthenticationProperties properties);
+
+        private static readonly TaskFactory _myTaskFactory = new TaskFactory(CancellationToken.None,
+            TaskCreationOptions.None, TaskContinuationOptions.None, TaskScheduler.Default);
+
+        private static TResult RunSync<TResult>(Func<Task<TResult>> func)
+        {
+            // REVIEW: Do we need to flow culture info still?
+            return _myTaskFactory.StartNew(() => func()).Unwrap().GetAwaiter().GetResult();
+        }
+
+        private static void RunSync(Func<Task> func)
+        {
+            // REVIEW: Do we need to flow culture info still?
+            _myTaskFactory.StartNew(() => func()).Unwrap().GetAwaiter().GetResult();
+        }
     }
 }

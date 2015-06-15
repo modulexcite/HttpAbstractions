@@ -16,7 +16,7 @@ namespace Microsoft.AspNet.Http.Authentication
 
         public void Authenticate(AuthenticateContext context)
         {
-            RunSync(() => AuthenticateAsync(context));
+            AuthenticateAsync(context).GetAwaiter().GetResult();
         }
 
         public abstract Task AuthenticateAsync(AuthenticateContext context);
@@ -87,20 +87,5 @@ namespace Microsoft.AspNet.Http.Authentication
         }
 
         public abstract Task SignOutAsync(string authenticationScheme, AuthenticationProperties properties);
-
-        private static readonly TaskFactory _myTaskFactory = new TaskFactory(CancellationToken.None,
-            TaskCreationOptions.None, TaskContinuationOptions.None, TaskScheduler.Default);
-
-        private static TResult RunSync<TResult>(Func<Task<TResult>> func)
-        {
-            // REVIEW: Do we need to flow culture info still?
-            return _myTaskFactory.StartNew(() => func()).Unwrap().GetAwaiter().GetResult();
-        }
-
-        private static void RunSync(Func<Task> func)
-        {
-            // REVIEW: Do we need to flow culture info still?
-            _myTaskFactory.StartNew(() => func()).Unwrap().GetAwaiter().GetResult();
-        }
     }
 }
